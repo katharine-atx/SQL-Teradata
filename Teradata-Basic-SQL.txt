@@ -43,20 +43,7 @@ SHOW table STORE_MSA;
 SHOW table STRINFO;
 SHOW table TRNSACT;
 
-# Examining distinct values for each of the tables...
-# Which have duplicate records?
-
-
-# What is the difference between amt, quantity and sprice fields in ...
-
-select distinct rows from a table
--­‐
-rename columns in a query output
--­‐
-reference parts of text “
-strings”
--­‐
-use “BETWEEN” and “IN” in your query statements
+# Further exploring the tables with sample queries...
 
 # NULL values are permitted for CITY, STATE & ZIP in STRINFO, however there are no NULL values present...
 SELECT CITY FROM STRINFO WHERE CITY IS NULL; # Returns no data
@@ -90,10 +77,30 @@ FROM DEPTINFO
 WHERE DEPTDESC LIKE('E%');
 
 # Date of earliest sale where sale price <> original price...
+SELECT TOP 1 SALEDATE
+FROM TRNSACT
+WHERE SPRICE <> ORGPRICE
+ORDER BY SALEDATE ASC;
 
+# Largest margin (original price minus sale price) of an item sold on 04/08/01?
+SELECT TOP 1 ORGPRICE - SPRICE AS MARGIN
+FROM TRNSACT
+WHERE SALEDATE = '2004-08-01'
+ORDER BY ORGPRICE - SPRICE DESC;
 
-# Largest margin (original price minus sale price) of an item sold on xxx?
-# What register number made the sale with the highest original price and highest sale price between the dates of August 1, 2004 and August 10, 2004? Make sure to sort by original price first and sale price second.
-# Which of the following brand names with the word/letters “liz” in them exist in the Dillard’s database? Select all that apply. Note that you will need more than a single correct selection to answer the question correctly.
-# What is the lowest store number of all the stores in the STORE_MSA table that are in the city of “little rock”,”Memphis”, or “tulsa”? 
+# Register with top sale (original price, then sale price) between August 1, 2004 and August 10, 2004...
+SELECT TOP 1 REGISTER, ORGPRICE, SPRICE, SALEDATE
+FROM TRNSACT
+WHERE SALEDATE BETWEEN '2004-08-01' AND '2004-08-10'
+ORDER BY ORGPRICE DESC, SPRICE DESC;
 
+# All brands containing "LIZ"...
+SELECT DISTINCT BRAND
+FROM SKUINFO
+WHERE BRAND LIKE('%LIZ%');
+
+# Lowest store number with city value of “little rock”,”Memphis”, or “tulsa”...
+SELECT TOP 1 STORE
+FROM STORE_MSA
+WHERE CITY IN ('little rock','Memphis', 'tulsa')
+ORDER BY STORE ASC;
