@@ -37,6 +37,16 @@ FROM TRNSACT T INNER JOIN SKSTINFO S ON T.SKU = S.SKU AND T.STORE = S.STORE;
 SELECT COUNT(DISTINCT S.SKU)
 FROM SKSTINFO S INNER JOIN SKUINFO K ON K.SKU = S.SKU;
 
+# Examining rows in the trnsact table that are not in skstinfo table v. those that are...
+SELECT TOP 25 *
+FROM TRNSACT T LEFT JOIN SKSTINFO S ON T.SKU = S.SKU AND T.STORE = S.STORE
+WHERE S.STORE IS NULL;
+SELECT TOP 25 *
+FROM TRNSACT T LEFT JOIN SKSTINFO S ON T.SKU = S.SKU AND T.STORE = S.STORE
+WHERE S.STORE IS NOT NULL;
+
+# There's no obvious data entry or join issue...
+
 # Looking at the stores in these 4 tables:
 HELP table SKSTINFO;
 HELP table STORE_MSA;
@@ -58,6 +68,71 @@ FROM TRNSACT;
 # 453 with a record in the store table
 # 332 with transactions
 
+# Calculating Dillard’s average profit per day, including just transactions with store/cost info:
+
+# Show the profit for each day... filtering for purchases (P) v. returns (R)
+SELECT AVG(SUM(SPRICE - COST)) AS DailyProfit, SALEDATE
+FROM TRNSACT T LEFT JOIN SKSTINFO S ON T.SKU = S.SKU AND T.STORE = S.STORE
+WHERE S.STORE IS NOT NULL AND STYPE = 'P'
+GROUP BY SALEDATE
+ORDER BY DATE ASC;
+
+# Calculate the average daily profit for the time period...
+SELECT SUM(SPRICE - COST)/ COUNT(DISTINCT SALEDATE) AS AvgDailyProfit
+FROM TRNSACT T LEFT JOIN SKSTINFO S ON T.SKU = S.SKU AND T.STORE = S.STORE
+WHERE S.STORE IS NOT NULL AND STYPE = 'P';
+
+# Which dates had the highest $ value and quantity of goods returned (R)?
+# For total value of returns, 4-27-2012 was the top day:
+SELECT TOP 5 SALEDATE, SUM(SPRICE) AS ReturnsValue
+FROM TRNSACT 
+WHERE STYPE = 'R'
+GROUP BY SALEDATE
+ORDER BY ReturnsValue DESC;
+
+# 4-27-2012 was also the top day for quantity of items returned:
+SELECT TOP 5 SALEDATE, SUM(QUANTITY) AS ReturnsQuantity
+FROM TRNSACT 
+WHERE STYPE = 'R'
+GROUP BY SALEDATE
+ORDER BY ReturnsQuantity DESC;
+
+# Data quality check: maximum and minimum price paid for an item in the trnsact table...
+SELECT MAX(SPRICE), MIN(SPRICE)
+FROM TRNSACT;
+
+# MIN $0 to MAX $6000+... there are probably errors on both the max and min side.
+
+# How many departments have more than 100 brands?
+# Taking a look at the departments table...
+HELP table DEPTINFO;
+
+# Selecting departments with 100+ associated brands... there are 3.
+SELECT D.DEPTDESC, COUNT(DISTINCT S.BRAND) AS Brands
+FROM DEPTINFO D LEFT JOIN SKUINFO S ON D.DEPT = S.DEPT
+GROUP BY D.DEPTDESC
+HAVING Brands >= 100;
+
+# Join the transaction SKUs to the department descriptions (3 table join)...
+SELECT TOP 10 D.DEPTDESC, T.*
+FROM TRNSACT T LEFT JOIN SKUINFO S ON T.SKU = S.SKU LEFT JOIN DEPTINFO D ON S.DEPT =  D.DEPT;
+
+# What department + brand + style + color combo had the greatest total returned items value?
+# Looks like a lot of one style of men's polo khaki pants (#4GZ 782633)...
+SELECT TOP 5 D.DEPT, D.DEPTDESC, S.STYLE, S.COLOR, SUM(T.SPRICE) AS TotalValue
+FROM TRNSACT T LEFT JOIN SKUINFO S ON T.SKU = S.SKU LEFT JOIN DEPTINFO D ON S.DEPT =  D.DEPT
+WHERE T.STYPE = 'R'
+GROUP BY D.DEPT, D.DEPTDESC, S.STYLE, S.COLOR
+ORDER BY TotalValue DESC;
+
+# Over the time period, what is the store location (with State,ZIP) with the most total revenue?
+# Store #8402 in Metairie, LA 70002:
+SELECT TOP 5 S.STORE, S.STATE, S.ZIP, SUM(T.SPRICE) AS Revenue
+FROM STRINFO S LEFT JOIN TRNSACT T ON S.STORE = T.STORE
+WHERE T.STYPE = 'P'
+GROUP BY S.STORE, S.STATE, S.ZIP
+ORDER BY Revenue DESC;
+ 
 
 
 
