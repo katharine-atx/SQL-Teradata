@@ -133,6 +133,55 @@ WHERE T.STYPE = 'P'
 GROUP BY S.STORE, S.STATE, S.ZIP
 ORDER BY Revenue DESC;
  
+# On what day was Dillard’s income based on total sum of purchases the greatest?
+# 4-18-2012
+SELECT TOP 5 SALEDATE, SUM(AMT) AS PurchasesValue
+FROM TRNSACT 
+WHERE STYPE = 'P'
+GROUP BY SALEDATE
+ORDER BY PurchasesValue DESC;
 
+# Departments with top 3 greatest numbers of skus from the skuinfo...
+# INVEST, POLOMEN, BRIOSCO...
+SELECT TOP 5 D.DEPT, D.DEPTDESC, COUNT(DISTINCT S.SKU) AS SKUs
+FROM SKUINFO S RIGHT JOIN DEPTINFO D ON S.DEPT =  D.DEPT
+GROUP BY D.DEPT, D.DEPTDESC
+ORDER BY SKUs DESC;
+
+# General query about MSAs in NC...
+SELECT COUNT(DISTINCT MSA) AS MSAs, MIN(MSA_POP), MAX(MSA_INCOME)
+FROM STORE_MSA
+WHERE STATE = 'NC';
+
+# What department + brand + style + color combo had the greatest total purchased items value?
+# Dept 800 Clinique DDML pump...
+SELECT TOP 5 D.DEPT, D.DEPTDESC, S.STYLE, S.COLOR, SUM(T.SPRICE) AS TotalValue
+FROM TRNSACT T LEFT JOIN SKUINFO S ON T.SKU = S.SKU LEFT JOIN DEPTINFO D ON S.DEPT =  D.DEPT
+WHERE T.STYPE = 'P'
+GROUP BY D.DEPT, D.DEPTDESC, S.STYLE, S.COLOR
+ORDER BY TotalValue DESC;
+
+# Stores with > 180K SKUs in skstinfo...there are 12.
+SELECT STORE, COUNT(DISTINCT SKU) as SKUs
+FROM SKSTINFO
+GROUP BY STORE
+HAVING SKUs > 180000;
+
+# How do these SKUs differ? ... In style and size field values.
+SELECT D.DEPT, D.DEPTDESC, S.*
+FROM SKUINFO S LEFT JOIN DEPTINFO D ON S.DEPT = D.DEPT
+WHERE D.DEPTDESC = 'COP' AND BRAND = 'FEDERAL' AND COLOR = 'RINSE WASH';
+
+# How many states have >10 stores?... There are 15.
+SELECT STATE, COUNT(DISTINCT STORE) AS Stores
+FROM STRINFO
+GROUP BY STATE
+HAVING Stores > 10;
+
+# Suggested retail price of skus in the “reebok” dept with 
+# “skechers” brand and “wht/saphire” color... $29.
+SELECT S.SKU, S.BRAND, S.COLOR, D.DEPTDESC, K.RETAIL
+FROM SKUINFO S LEFT JOIN SKSTINFO K ON S.SKU = K.SKU LEFT JOIN DEPTINFO D ON S.DEPT = D.DEPT
+WHERE D.DEPTDESC = 'REEBOK' AND S.BRAND = 'SKECHERS' AND S.COLOR = 'WHT/SAPHIRE';
 
 
