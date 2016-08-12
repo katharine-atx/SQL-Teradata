@@ -1,0 +1,63 @@
+# Query examples using the Dillard's transaction database provided by
+# the University of Arkansas.
+
+# Objective: Understand the different subsets of sku numbers and departments 
+# in each of the tables in the Dillard’s database.
+
+# Setting a default database..
+DATABASE ua_dillards;
+
+# Note on GROUP BY with Teradata: Any non-aggregate column in the SELECT list 
+# or HAVING list of a query with a GROUP BY clause must also listed in the 
+# GROUP BY clause or an error will be thrown.
+# MySQL allows non-aggregate and defaults to "first" (random) instance value.
+
+# Looking at the SKUs in these 3 tables:
+HELP table SKSTINFO;
+HELP table SKUINFO;
+HELP table TRNSACT;
+
+# How many distinct skus in each table?
+SELECT COUNT(DISTINCT SKU)
+FROM SKSTINFO;
+SELECT COUNT(DISTINCT SKU)
+FROM SKUINFO;
+SELECT COUNT(DISTINCT SKU)
+FROM TRNSACT;
+
+# 760212 - SKUs in stores
+# 1564178 - SKUs in SKU table
+# 714499 - SKUs in transactions
+
+# Are all transaction SKUs found in the store SKU table?  No: Count = 526366
+SELECT COUNT(DISTINCT T.SKU)
+FROM TRNSACT T INNER JOIN SKSTINFO S ON T.SKU = S.SKU AND T.STORE = S.STORE;
+
+# Are all store SKUs found in the larger SKU table? Yes: Count = 760212
+SELECT COUNT(DISTINCT S.SKU)
+FROM SKSTINFO S INNER JOIN SKUINFO K ON K.SKU = S.SKU;
+
+# Looking at the stores in these 4 tables:
+HELP table SKSTINFO;
+HELP table STORE_MSA;
+HELP table STRINFO;
+HELP table TRNSACT;
+
+# How many distinct store IDs in each?
+SELECT COUNT(DISTINCT STORE)
+FROM SKSTINFO;
+SELECT COUNT(DISTINCT STORE)
+FROM STORE_MSA;
+SELECT COUNT(DISTINCT STORE)
+FROM STRINFO;
+SELECT COUNT(DISTINCT STORE)
+FROM TRNSACT;
+
+# 357 with SKU inventory listed
+# 333 with MSA info
+# 453 with a record in the store table
+# 332 with transactions
+
+
+
+
