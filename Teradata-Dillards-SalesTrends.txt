@@ -1,0 +1,13 @@
+# Query examples using the Dillard's transaction database provided by
+# the University of Arkansas.
+
+# Objective: Identify trends in sales volume based on time and location factors.
+
+# Setting a default database...
+DATABASE ua_dillards;
+
+# Note: Teradata does not allow for IF statements - use CASE WHEN instead.
+
+
+
+
