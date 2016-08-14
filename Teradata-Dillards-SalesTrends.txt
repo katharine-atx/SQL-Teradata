@@ -33,8 +33,9 @@ ORDER BY sYear, sMonth;
 
 # What about at the store level? Anticipating patchy data due to reporting issues, store closings...
 # Yes, there's variation. There are 12 cases of a store reporting less than 20 days in a month (incl. 5 reporting just 1 day).
-# It may make sense to filter for stores HAVING >= 25 reporting days in a month or a similar criteria.
-SELECT TOP 40 store, EXTRACT(MONTH from saledate) AS sMonth, EXTRACT(YEAR from saledate) AS sYear, COUNT(DISTINCT saledate) AS DaysReported
+# It may make sense to filter for stores HAVING >= 20 reporting days in a month or a similar criteria.
+SELECT TOP 40 store, EXTRACT(MONTH from saledate) AS sMonth, 
+	EXTRACT(YEAR from saledate) AS sYear, COUNT(DISTINCT saledate) AS DaysReported
 FROM trnsact
 GROUP BY store, sMonth, sYear
 ORDER BY DaysReported ASC;
@@ -42,18 +43,18 @@ ORDER BY DaysReported ASC;
 # Note: About 20% of stores have some missing data. We'll look “average daily revenue” to
 # accomodate this. 
 
-# Calculating average daily revenue for each store/month/year combination in the database...
-# These range from $1 (no doubt an error) to $105K:
-SELECT TOP 50 Days.store, Days.sMonth, Days.sYear, SUM(t.sprice) AS SalesRevenue,
-	AVG(Days.DaysReported) AS DaysReported, SUM(t.sprice)/AVG(Days.DaysReported) AS AvgDailyRevenue
+# Calculating average daily revenue for each store/month/year combination in the database with data 
+# limited to stores reporting 20+ days for the month:
+SELECT TOP 50 Days.store, Days.sMonth, Days.sYear, SUM(Days.SalesRevenue) AS tSalesRevenue,
+	SUM(Days.DaysReported) AS DaysReported, SUM(Days.SalesRevenue)/SUM(Days.DaysReported) AS AvgDailyRevenue
 FROM (
 	SELECT store, EXTRACT(MONTH from saledate) AS sMonth, EXTRACT(YEAR from saledate) AS sYear, 
-	COUNT(DISTINCT saledate) AS DaysReported
+	COUNT(DISTINCT saledate) AS DaysReported, SUM(sprice) AS SalesRevenue
 	FROM trnsact
+	WHERE saledate < '2005-08-01' AND stype = 'P'
 	GROUP BY store, sMonth, sYear
-	) AS Days LEFT JOIN trnsact t ON 
-	EXTRACT(MONTH from t.saledate) = Days.sMonth AND EXTRACT(YEAR from saledate) = Days.sYear AND Days.store = t.store
-WHERE t.saledate < '2005-08-01' AND t.stype = 'P'
+	HAVING DaysReported >= 20
+	) AS Days 
 GROUP BY Days.store, Days.sMonth, Days.sYear
 ORDER BY AvgDailyRevenue DESC;
 
@@ -61,6 +62,62 @@ ORDER BY AvgDailyRevenue DESC;
 # combination by writing: EXTRACT(YEAR from saledate)||EXTRACT(MONTH from saledate)
 # For tips on string data syntax in Teradata, see:
 # http://blog.extrobe.co.uk/blog/2015/02/13/concatenating-strings-in-teradata-and-what-to-watch-out-for-with-fixed-length-fields/
+
+# Taking a look at the population statistics of store locations as they relate to sales performance...
+
+# Defining tiers to evaluate the relationship with high school graduation rates in a store's MSA...
+# Only 1 store lacks data on graduation rate, most store MSAs are 'High':
+SELECT COUNT(DISTINCT store), CASE
+	WHEN msa_high > 70 THEN 'High'
+	WHEN msa_high < 70 AND msa_high >= 60 THEN 'Medium'
+	WHEN msa_high < 60 THEN 'Low'
+	END AS HighSchool
+FROM store_msa
+GROUP BY HighSchool;
+
+# Looking at average daily revenue by HighSchool store categories...
+# The 'medium' and 'low' MSA stores had higher average daily revenue but there were few such stores:
+SELECT CASE
+	WHEN msa_high > 70 THEN 'High'
+	WHEN msa_high < 70 AND msa_high >= 60 THEN 'Medium'
+	WHEN msa_high < 60 THEN 'Low'
+	END AS HighSchool,
+	SUM(Days.SalesRevenue) AS tSalesRevenue, SUM(Days.DaysReported) AS DaysReported, 
+	SUM(Days.SalesRevenue)/SUM(Days.DaysReported) AS AvgDailyRevenue
+FROM (
+	SELECT store, EXTRACT(MONTH from saledate) AS sMonth, EXTRACT(YEAR from saledate) AS sYear, 
+	COUNT(DISTINCT saledate) AS DaysReported, SUM(sprice) AS SalesRevenue
+	FROM trnsact
+	WHERE saledate < '2005-08-01' AND stype = 'P'
+	GROUP BY store, sMonth, sYear
+	HAVING DaysReported >= 20
+	) AS Days 
+	LEFT JOIN store_msa msa ON msa.store = Days.store
+GROUP BY HighSchool;
+
+# Looking at stores in highest and lowest median MSA income for average daily revenue... 
+# In what city and state were these stores, and which store had a higher average daily revenue? 
+
+SELECT CASE
+	WHEN msa_income = MAX(msa_income) THEN 'Highest Income'
+	WHEN msa_income = MIN(msa_income) THEN 'Lowest Income'
+	END AS MSAIncomeFlag,
+	msa.city, msa.state, 
+	SUM(Days.SalesRevenue) AS tSalesRevenue, 
+	SUM(Days.DaysReported) AS DaysReported, 
+	SUM(Days.SalesRevenue)/SUM(Days.DaysReported) AS AvgDailyRevenue
+FROM (
+	SELECT store, EXTRACT(MONTH from saledate) AS sMonth, EXTRACT(YEAR from saledate) AS sYear, 
+	COUNT(DISTINCT saledate) AS DaysReported, SUM(sprice) AS SalesRevenue
+	FROM trnsact
+	WHERE saledate < '2005-08-01' AND stype = 'P'
+	GROUP BY store, sMonth, sYear
+	HAVING DaysReported >= 20
+	) AS Days 
+	LEFT JOIN store_msa msa ON msa.store = Days.store
+GROUP BY MSAIncomeFlag, msa.city, msa.state
+HAVING MSAIncomeFlag IN ('Highest Income', 'Lowest Income');
+
 
 # Identifying the SKU with greatest total sales the summer months (June, July, Aug)...
 # Note: Teradata does not allow for IF statements - use CASE WHEN instead.
