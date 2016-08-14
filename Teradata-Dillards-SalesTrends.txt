@@ -95,14 +95,25 @@ FROM (
 	LEFT JOIN store_msa msa ON msa.store = Days.store
 GROUP BY HighSchool;
 
-# Looking at stores in highest and lowest median MSA income for average daily revenue... 
-# In what city and state were these stores, and which store had a higher average daily revenue? 
+# Income: Looking at stores in highest and lowest median MSA income for average daily revenue... 
 
-SELECT CASE
-	WHEN msa_income = MAX(msa_income) THEN 'Highest Income'
-	WHEN msa_income = MIN(msa_income) THEN 'Lowest Income'
-	END AS MSAIncomeFlag,
-	msa.city, msa.state, 
+# Note: we're looking to include something similar to a Top N component, but ORDER BY is not
+# permitted in sub-queries. One way to accomplish is with a derived table using TOP,
+# i.e.
+# SELECT DISTINCT top3.sku, top3.city, top3.state
+# FROM (SELECT TOP 3 t.sku, s.city, s.state
+	# FROM trnsact t JOIN strinfo s
+	# ON t.store = s.store
+	# ORDER BY t.sprice DESC) top3
+	
+# Another option is to join on max/min values as below since these particular stores
+# at max/min MSA income met the reporting criteria for the query.
+
+# Highest/lowest median MSA income stores...
+# These were in Spanish Fort, AL (highest income) and McAllen, TX (lowest income).
+# As with the education query, the result is a bit surprising, with much higher
+# average daily revenue in the lower income MSA:
+SELECT Days.store, msa.city, msa.state, msa.msa_income,
 	SUM(Days.SalesRevenue) AS tSalesRevenue, 
 	SUM(Days.DaysReported) AS DaysReported, 
 	SUM(Days.SalesRevenue)/SUM(Days.DaysReported) AS AvgDailyRevenue
@@ -113,11 +124,15 @@ FROM (
 	WHERE saledate < '2005-08-01' AND stype = 'P'
 	GROUP BY store, sMonth, sYear
 	HAVING DaysReported >= 20
-	) AS Days 
+	) AS Days
 	LEFT JOIN store_msa msa ON msa.store = Days.store
-GROUP BY MSAIncomeFlag, msa.city, msa.state
-HAVING MSAIncomeFlag IN ('Highest Income', 'Lowest Income');
+	RIGHT JOIN (
+		SELECT MAX(msa_income) as Imax, MIN(msa_income) as Imin
+        FROM store_msa
+	) msaMaxMin ON (msa.msa_income = msaMaxMin.Imax OR msa.msa_income = msaMaxMin.Imin)
+GROUP BY Days.store, msa.city, msa.state, msa.msa_income;
 
+# Examining variations in prices paid for a given item SKU...
 
 # Identifying the SKU with greatest total sales the summer months (June, July, Aug)...
 # Note: Teradata does not allow for IF statements - use CASE WHEN instead.
@@ -131,6 +146,15 @@ WHERE SummerFlag = 'summer' AND SALEDATE < '2005-08-01' AND STYPE = 'P'
 GROUP BY t.sku, d.dept, ski.style, ski.brand, ski.color, SummerFlag
 ORDER BY SalesRevenue DESC;
 
+# Identifying the brand of the sku with the greatest standard deviation in sprice.
+# Note: Including only SKUs that have over 100 associated transactions.
+# The most volatile brand for prices appears to be 'Polo Fas':
+SELECT TOP 5 s.sku, s.brand, COUNT(t.sku) AS transactions, AVG(t.sprice) AS avgPrice, STDDEV_SAMP(t.sprice) AS sdPrice
+FROM skuinfo s, trnsact t
+WHERE s.sku = t.sku AND t.saledate < '2005-08-01' AND t.stype = 'P'
+GROUP BY s.sku, s.brand
+HAVING transactions > 100
+ORDER BY sdPrice DESC;
 
 
 
