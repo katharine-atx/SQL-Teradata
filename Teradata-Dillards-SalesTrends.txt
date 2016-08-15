@@ -66,6 +66,8 @@ ORDER BY AvgDailyRevenue DESC;
 # For tips on string data syntax in Teradata, see:
 # http://blog.extrobe.co.uk/blog/2015/02/13/concatenating-strings-in-teradata-and-what-to-watch-out-for-with-fixed-length-fields/
 
+
+
 # Taking a look at the population statistics of store locations as they relate to sales performance...
 
 # Defining tiers to evaluate the relationship with high school graduation rates in a store's MSA...
@@ -99,6 +101,8 @@ FROM (
 	) AS Days 
 	LEFT JOIN store_msa msa ON msa.store = Days.store
 GROUP BY HighSchool;
+
+
 
 # Income: Looking at stores in highest and lowest median MSA income for average daily revenue... 
 
@@ -138,6 +142,8 @@ FROM (
 	) msaMaxMin ON (msa.msa_income = msaMaxMin.Imax OR msa.msa_income = msaMaxMin.Imin)
 GROUP BY Days.store, msa.city, msa.state, msa.msa_income;
 
+
+
 # Examining variations in prices paid for a given item SKU...
 
 # Identifying the SKU with greatest total sales the summer months (June, July, Aug)...
@@ -173,6 +179,8 @@ SELECT tran.sku, tran.saledate, tran.sprice AS SalePrice, tran.amt AS tranAMT,
 FROM trnsact tran LEFT JOIN skstinfo k ON tran.sku = k.sku AND tran.store = k.store
 WHERE tran.sku = '5453849' AND tran.saledate < '2005-08-01' AND tran.stype = 'P'
 ORDER BY SalePrice;
+
+
 
 # Average daily revenue Dillard’s during each month of the year...
 # December is the highest with upticks in February and July:
@@ -253,5 +261,32 @@ FROM (
 GROUP BY AugSales.store, AugSales.city, AugSales.state
 ORDER BY PercentDecrease;
 
+# Example of how to grab the first record in a sorted partition...
+# From: https://datastagetips.wordpress.com/2011/06/14/teradata-sql-retrieve-first-rows-from-groups/
+#SELECT ord.*
+  #FROM orders ord
+#QUALIFY
+    #1 = ROW_NUMBER() OVER(PARTITION BY cust_no ORDER BY order_amt DESC);
+	
+# Adapting the above example to determine the month of maximum total revenue for each store
+# to count how many fit the trend of December being the strongest revenue month.
+# Note the QUALIFY statement to pull the max row for each store...
+# 317 stores with a December MAX, 11 otherwise.
 
-
+SELECT Rev.sMonth, COUNT(DISTINCT Rev.store) AS StoreCount
+FROM (
+	SELECT Days.store, Days.sMonth, SUM(Days.SalesRevenue) AS tSalesRevenue,
+		SUM(Days.DaysReported) AS DaysReported, SUM(Days.SalesRevenue)/SUM(Days.DaysReported) AS AvgDailyRevenue
+	FROM (
+		SELECT store, EXTRACT(MONTH from saledate) AS sMonth,  
+		COUNT(DISTINCT saledate) AS DaysReported, SUM(sprice) AS SalesRevenue
+		FROM trnsact
+		WHERE saledate < '2005-08-01' AND stype = 'P'
+		GROUP BY store, sMonth
+		HAVING DaysReported >= 20
+		) AS Days 
+		GROUP BY Days.store, Days.sMonth
+        QUALIFY 1 = ROW_NUMBER() OVER(PARTITION BY Days.store ORDER BY AvgDailyRevenue DESC)
+	) AS Rev
+GROUP BY Rev.sMonth
+ORDER BY StoreCount DESC;
